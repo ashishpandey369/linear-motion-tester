@@ -8,8 +8,18 @@
 #include "dc_motor.h"
 
 // =====================================================
-// DC MOTOR DISPLAY VALUES
+// DEVELOPMENT CHECKPOINT
+// Date: 2026-08-18
+// Time: 01:03 IST
+// Change: Restore intended 0-200 RPM display scale.
+// The DC motor command remains 0-100% from the pot.
+// Display RPM is a commanded/display scale, not measured RPM.
+// Frequency is derived from displayed RPM / 60.
+// Existing NEMA17/TB6600 and display architecture untouched.
 // =====================================================
+
+#define DC_DISPLAY_MIN_RPM 0
+#define DC_DISPLAY_MAX_RPM 200
 
 uint16_t dcDisplayRPM = 0;
 float dcDisplayFrequency = 0.0f;
@@ -20,23 +30,13 @@ float dcDisplayFrequency = 0.0f;
 
 uint32_t accumulatedRunTimeMs = 0;
 unsigned long runStartMillis = 0;
-
 bool stopwatchRunning = false;
 
-// =====================================================
-// DISPLAY UPDATE
-// =====================================================
-
 unsigned long previousMillis = 0;
-
-// =====================================================
-// SETUP
-// =====================================================
 
 void setup()
 {
     Serial.begin(115200);
-
     delay(100);
 
     Serial.println();
@@ -45,88 +45,45 @@ void setup()
     Serial.println(PROJECT_VERSION);
     Serial.println("--------------------------------");
 
-    // -------------------------------------------------
-    // Display
-    // -------------------------------------------------
-
     display.begin();
     display.drawHomeScreen();
 
-    // -------------------------------------------------
-    // Buttons
-    // -------------------------------------------------
-
     buttons.begin();
-
-    // -------------------------------------------------
-    // Existing RPM module
-    // DO NOT MODIFY
-    // -------------------------------------------------
-
     rpm.begin();
 
-    // -------------------------------------------------
-    // DC Motor
     // GPIO34 = existing potentiometer
-    // GPIO13 = PWM
-    // -------------------------------------------------
-
+    // GPIO13 = DC motor PWM
     dcMotor.begin();
 
     Serial.println("DC Motor initialized");
     Serial.println("Potentiometer : GPIO34");
     Serial.println("Motor PWM     : GPIO13");
-
+    Serial.println("Display scale : 0-200 RPM");
     Serial.println("--------------------------------");
 }
 
-// =====================================================
-// LOOP
-// =====================================================
-
 void loop()
 {
-    // -------------------------------------------------
-    // Update buttons
-    // -------------------------------------------------
-
     buttons.update();
-
-    // -------------------------------------------------
-    // DC MOTOR
-    //
-    // Potentiometer controls motor speed.
-    // -------------------------------------------------
-
     dcMotor.update();
 
-    // -------------------------------------------------
-    // Get current motor state
-    // -------------------------------------------------
-
     uint8_t motorSpeed = dcMotor.getSpeedPercent();
-
     bool machineRunning = (motorSpeed > 0);
 
     // =================================================
-    // STOPWATCH STATE
+    // STOPWATCH: follows the potentiometer-driven state.
     // =================================================
 
     if (machineRunning && !stopwatchRunning)
     {
-        // Machine has just started running
         runStartMillis = millis();
         stopwatchRunning = true;
-
         Serial.println("[WATCH] Started");
     }
-
     else if (!machineRunning && stopwatchRunning)
     {
-        // Machine has just stopped
         accumulatedRunTimeMs += millis() - runStartMillis;
         stopwatchRunning = false;
-
         Serial.println("[WATCH] Paused");
     }
 
@@ -140,8 +97,6 @@ void loop()
 
         if (machineRunning)
         {
-            // Restart stopwatch from zero while machine
-            // is already running.
             runStartMillis = millis();
             stopwatchRunning = true;
         }
@@ -152,10 +107,6 @@ void loop()
 
         Serial.println("[WATCH] Reset");
     }
-
-    // =================================================
-    // CALCULATE CURRENT RUNNING TIME
-    // =================================================
 
     uint32_t currentRunTimeMs = accumulatedRunTimeMs;
 
@@ -175,33 +126,21 @@ void loop()
     {
         previousMillis = millis();
 
-        // -------------------------------------------------
-        // Temporary RPM representation
-        // -------------------------------------------------
+        // Map the existing 0-100% pot command to 0-200 RPM.
+        dcDisplayRPM = map(
+            motorSpeed,
+            0,
+            100,
+            DC_DISPLAY_MIN_RPM,
+            DC_DISPLAY_MAX_RPM
+        );
 
-        dcDisplayRPM = motorSpeed;
-
-        dcDisplayFrequency =
-            dcDisplayRPM / 60.0f;
-
-        // -------------------------------------------------
-        // Update display
-        // -------------------------------------------------
+        // Display frequency = revolutions per second.
+        dcDisplayFrequency = dcDisplayRPM / 60.0f;
 
         display.updateRPM(dcDisplayRPM);
-
-        display.updateFrequency(
-            dcDisplayFrequency
-        );
-
-        display.updateRunningTime(
-            totalSeconds,
-            millisPart
-        );
-
-        // -------------------------------------------------
-        // Machine status
-        // -------------------------------------------------
+        display.updateFrequency(dcDisplayFrequency);
+        display.updateRunningTime(totalSeconds, millisPart);
 
         if (machineRunning)
         {
@@ -214,34 +153,25 @@ void loop()
             display.updateButton("START");
         }
 
-        // -------------------------------------------------
-        // Serial debug
-        // -------------------------------------------------
-
-        Serial.print("Motor Speed: ");
+        Serial.print("Motor Command: ");
         Serial.print(motorSpeed);
-
-        Serial.print("% | RPM: ");
+        Serial.print("% | Display RPM: ");
         Serial.print(dcDisplayRPM);
-
-        Serial.print(" | Time: ");
-
+        Serial.print(" | Frequency: ");
+        Serial.print(dcDisplayFrequency, 2);
+        Serial.print(" Hz | Time: ");
         Serial.print(totalSeconds / 60);
         Serial.print(":");
 
         if ((totalSeconds % 60) < 10)
             Serial.print("0");
-
         Serial.print(totalSeconds % 60);
-
         Serial.print(".");
 
         if (millisPart < 100)
             Serial.print("0");
-
         if (millisPart < 10)
             Serial.print("0");
-
         Serial.println(millisPart);
     }
 }

@@ -32,18 +32,12 @@
 #define POT_AUX 35
 
 /****************************************************
- *             OUTPUTS
+ *          TB6612FNG - N20 DC MOTOR
  ****************************************************/
-#define BUZZER_PIN 14
-
-#define LED_GREEN 13
-#define LED_RED 12
-
-// =====================================================
-// 5V DC MOTOR
-// =====================================================
-
+#define DC_MOTOR_STBY_PIN 33
 #define DC_MOTOR_PWM_PIN 13
+#define DC_MOTOR_AIN1_PIN 12
+#define DC_MOTOR_AIN2_PIN 14
 #define DC_MOTOR_POT_PIN 34
 
 #endif

@@ -10,17 +10,15 @@
 // =====================================================
 // DEVELOPMENT CHECKPOINT
 // Date: 2026-08-19
-// Time: 06:08 IST
-// Change: Timer control moved from potentiometer state
-// to dedicated START / STOP / RESET buttons.
+// Time: 13:42 IST
+// Change: Integrate N20 DC motor through TB6612FNG.
 //
 // Required behavior:
-// - Pot controls motor speed and display RPM/frequency only.
-// - Pot movement must NOT start the timer.
-// - START starts/resumes the timer.
-// - STOP freezes the timer at its current value.
-// - RESET clears the timer to 00:00.000.
-// - RESET is moved to GPIO32.
+// - Potentiometer controls requested motor speed / display RPM/frequency.
+// - Pot movement alone NEVER starts the motor or timer.
+// - START starts/resumes the timer and enables the N20 motor.
+// - STOP freezes the timer and immediately stops the N20 motor.
+// - RESET clears the timer to 00:00.000 and keeps the N20 motor stopped.
 // - Existing NEMA17/TB6600 motor code remains untouched.
 // =====================================================
 
@@ -56,36 +54,28 @@ void setup()
 
     buttons.begin();
     rpm.begin();
-
-    // GPIO34 = potentiometer
-    // GPIO13 = DC motor PWM
     dcMotor.begin();
 
-    Serial.println("DC Motor initialized");
-    Serial.println("Potentiometer : GPIO34");
-    Serial.println("Motor PWM     : GPIO13");
-    Serial.println("Display scale : 0-200 RPM");
-    Serial.println("Timer START   : GPIO25");
-    Serial.println("Timer STOP    : GPIO26");
-    Serial.println("Timer RESET   : GPIO32");
+    Serial.println("N20 + TB6612FNG initialized");
+    Serial.println("Motor STBY     : GPIO33");
+    Serial.println("Motor PWMA     : GPIO13");
+    Serial.println("Motor AIN1     : GPIO12");
+    Serial.println("Motor AIN2     : GPIO14");
+    Serial.println("Motor Pot      : GPIO34");
+    Serial.println("Timer START    : GPIO25");
+    Serial.println("Timer STOP     : GPIO26");
+    Serial.println("Timer RESET    : GPIO32");
+    Serial.println("Display scale  : 0-200 RPM");
     Serial.println("--------------------------------");
 }
 
 void loop()
 {
     buttons.update();
-    dcMotor.update();
-
-    // =================================================
-    // MOTOR SPEED / DISPLAY
-    // The potentiometer controls motor speed only.
-    // It has NO control over the stopwatch.
-    // =================================================
-
-    uint8_t motorSpeed = dcMotor.getSpeedPercent();
 
     // =================================================
     // TIMER BUTTON LOGIC
+    // The timer state is the machine RUNNING state.
     // =================================================
 
     // START: begin or resume timing.
@@ -110,14 +100,25 @@ void loop()
         }
     }
 
-    // RESET: clear elapsed time to zero.
+    // RESET: clear elapsed time to zero and keep machine stopped.
     if (buttons.resetPressed())
     {
         accumulatedRunTimeMs = 0;
         runStartMillis = millis();
         stopwatchRunning = false;
+        dcMotor.stop();
         Serial.println("[WATCH] Reset to 00:00.000");
     }
+
+    // =================================================
+    // N20 MOTOR
+    // The potentiometer sets the requested speed, but
+    // dcMotor will physically drive the motor ONLY when
+    // stopwatchRunning == true.
+    // =================================================
+
+    dcMotor.update(stopwatchRunning);
+    uint8_t motorSpeed = dcMotor.getSpeedPercent();
 
     // =================================================
     // CALCULATE CURRENT RUNNING TIME
@@ -141,7 +142,8 @@ void loop()
     {
         previousMillis = millis();
 
-        // Map pot command 0-100% to display range 0-200 RPM.
+        // Pot command 0-100% maps to display range 0-200 RPM.
+        // This is the requested/commanded value, not encoder-measured RPM.
         dcDisplayRPM = map(
             motorSpeed,
             0,
@@ -150,14 +152,12 @@ void loop()
             DC_DISPLAY_MAX_RPM
         );
 
-        // Frequency = displayed revolutions per second.
         dcDisplayFrequency = dcDisplayRPM / 60.0f;
 
         display.updateRPM(dcDisplayRPM);
         display.updateFrequency(dcDisplayFrequency);
         display.updateRunningTime(totalSeconds, millisPart);
 
-        // Status reflects the timer state, not the pot position.
         if (stopwatchRunning)
         {
             display.updateStatus("RUNNING");
@@ -171,7 +171,9 @@ void loop()
 
         Serial.print("Motor Command: ");
         Serial.print(motorSpeed);
-        Serial.print("% | Display RPM: ");
+        Serial.print("% | Motor Output: ");
+        Serial.print(stopwatchRunning ? "ON" : "OFF");
+        Serial.print(" | Display RPM: ");
         Serial.print(dcDisplayRPM);
         Serial.print(" | Frequency: ");
         Serial.print(dcDisplayFrequency, 2);

@@ -32,21 +32,19 @@
 #define POT_AUX 35
 
 /****************************************************
- *          TB6612FNG - N20 DC MOTOR
+ *          BTS7960 - 12V DC MOTOR
  ****************************************************/
-#define DC_MOTOR_STBY_PIN 33
+// One-direction operation: RPWM is the only ESP32 control signal.
+// R_EN and L_EN are held HIGH externally at the BTS7960 module.
 #define DC_MOTOR_PWM_PIN 13
-#define DC_MOTOR_AIN1_PIN 12
-#define DC_MOTOR_AIN2_PIN 14
 #define DC_MOTOR_POT_PIN 34
 
 /****************************************************
  *       LEGACY OUTPUT DEFINITIONS
  ****************************************************/
-// These definitions are retained so the legacy buzzer/LED
-// source files continue to compile. GPIO12/13/14 are now
-// reserved for TB6612FNG motor control and must not be used
-// for the legacy LED/buzzer hardware during motor operation.
+// Retained for source compatibility. GPIO13 is now reserved for
+// BTS7960 RPWM, so the legacy LED/buzzer hardware must not share
+// these pins during motor operation.
 #define BUZZER_PIN 14
 #define LED_GREEN 13
 #define LED_RED 12

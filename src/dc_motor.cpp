@@ -23,7 +23,7 @@ void DCMotor::begin()
     pinMode(DC_MOTOR_AIN1_PIN, OUTPUT);
     pinMode(DC_MOTOR_AIN2_PIN, OUTPUT);
 
-    // Default to forward direction, but keep the driver in standby.
+    // Fixed forward direction. The potentiometer controls speed only.
     digitalWrite(DC_MOTOR_AIN1_PIN, HIGH);
     digitalWrite(DC_MOTOR_AIN2_PIN, LOW);
     digitalWrite(DC_MOTOR_STBY_PIN, LOW);
@@ -40,16 +40,17 @@ void DCMotor::update(bool running)
 {
     machineRunning = running;
 
-    // The potentiometer always determines the requested speed,
-    // but the motor output is allowed only while the machine is RUNNING.
+    // Reverse the potentiometer response:
+    // turning the pot toward its previous maximum now reduces speed,
+    // while turning it toward its previous minimum increases speed.
     uint16_t potValue = analogRead(DC_MOTOR_POT_PIN);
 
     uint8_t percent = map(
         potValue,
         0,
         4095,
-        0,
-        100);
+        100,
+        0);
 
     setSpeed(percent);
 }
@@ -62,6 +63,8 @@ void DCMotor::setSpeed(uint8_t percent)
 
 void DCMotor::applyOutput()
 {
+    // Potentiometer may request any speed, but the physical motor is
+    // enabled only while the machine is in RUNNING state.
     if (!machineRunning || speedPercent == 0)
     {
         digitalWrite(DC_MOTOR_STBY_PIN, LOW);
@@ -71,6 +74,7 @@ void DCMotor::applyOutput()
 
     digitalWrite(DC_MOTOR_STBY_PIN, HIGH);
 
+    // 100% requested speed = full 8-bit PWM duty (255/255).
     uint8_t duty = map(
         speedPercent,
         0,

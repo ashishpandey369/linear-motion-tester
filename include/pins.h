@@ -23,7 +23,7 @@
  ****************************************************/
 #define BTN_START 25
 #define BTN_STOP 26
-#define BTN_RESET 16
+#define BTN_RESET 32
 
 /****************************************************
  *             POTENTIOMETERS

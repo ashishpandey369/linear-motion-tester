@@ -11,24 +11,37 @@ namespace
 }
 
 DCMotor::DCMotor()
-    : speedPercent(0)
+    : speedPercent(0),
+      machineRunning(false)
 {
 }
 
 void DCMotor::begin()
 {
+    pinMode(DC_MOTOR_STBY_PIN, OUTPUT);
     pinMode(DC_MOTOR_PWM_PIN, OUTPUT);
+    pinMode(DC_MOTOR_AIN1_PIN, OUTPUT);
+    pinMode(DC_MOTOR_AIN2_PIN, OUTPUT);
+
+    // Default to forward direction, but keep the driver in standby.
+    digitalWrite(DC_MOTOR_AIN1_PIN, HIGH);
+    digitalWrite(DC_MOTOR_AIN2_PIN, LOW);
+    digitalWrite(DC_MOTOR_STBY_PIN, LOW);
 
     ledcSetup(PWM_CHANNEL, PWM_FREQUENCY, PWM_RESOLUTION);
     ledcAttachPin(DC_MOTOR_PWM_PIN, PWM_CHANNEL);
-
     ledcWrite(PWM_CHANNEL, 0);
 
     speedPercent = 0;
+    machineRunning = false;
 }
 
-void DCMotor::update()
+void DCMotor::update(bool running)
 {
+    machineRunning = running;
+
+    // The potentiometer always determines the requested speed,
+    // but the motor output is allowed only while the machine is RUNNING.
     uint16_t potValue = analogRead(DC_MOTOR_POT_PIN);
 
     uint8_t percent = map(
@@ -43,12 +56,23 @@ void DCMotor::update()
 
 void DCMotor::setSpeed(uint8_t percent)
 {
-    percent = constrain(percent, 0, 100);
+    speedPercent = constrain(percent, 0, 100);
+    applyOutput();
+}
 
-    speedPercent = percent;
+void DCMotor::applyOutput()
+{
+    if (!machineRunning || speedPercent == 0)
+    {
+        digitalWrite(DC_MOTOR_STBY_PIN, LOW);
+        ledcWrite(PWM_CHANNEL, 0);
+        return;
+    }
+
+    digitalWrite(DC_MOTOR_STBY_PIN, HIGH);
 
     uint8_t duty = map(
-        percent,
+        speedPercent,
         0,
         100,
         0,
@@ -59,9 +83,9 @@ void DCMotor::setSpeed(uint8_t percent)
 
 void DCMotor::stop()
 {
-    speedPercent = 0;
-
+    machineRunning = false;
     ledcWrite(PWM_CHANNEL, 0);
+    digitalWrite(DC_MOTOR_STBY_PIN, LOW);
 }
 
 uint8_t DCMotor::getSpeedPercent()

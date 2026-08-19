@@ -9,7 +9,7 @@ public:
     DCMotor();
 
     void begin();
-    void update();
+    void update(bool machineRunning);
 
     void setSpeed(uint8_t percent);
     void stop();
@@ -18,6 +18,8 @@ public:
 
 private:
     uint8_t speedPercent;
+    bool machineRunning;
+    void applyOutput();
 };
 
 extern DCMotor dcMotor;
